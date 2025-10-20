@@ -137,8 +137,8 @@ const Leads = () => {
         </Grid>
         <Grid item xs={12} md={8} display="flex" justifyContent="end" gap={1}>
           {create && (
-            <Button variant="outlined" onClick={navigateToCreate}>
-              New Lead
+            <Button variant="outlined" size="small" onClick={navigateToCreate}>
+              + New Lead
             </Button>
           )}
         </Grid>

@@ -111,54 +111,56 @@ const CreateLead = () => {
 
      
             <Grid item xs={12} md={2}><Typography component="label" fontWeight="bold">First Name</Typography></Grid>
-            <Grid item xs={12} md={4}><TextField fullWidth placeholder="First Name" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></Grid>
+            <Grid item xs={12} md={4}><TextField fullWidth size="small" placeholder="First Name" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></Grid>
             
             <Grid item xs={12} md={2}><Typography component="label" fontWeight="bold">Last Name</Typography></Grid>
-            <Grid item xs={12} md={4}><TextField fullWidth placeholder="Last Name" value={lastName} onChange={(e) => setLastName(e.target.value)} /></Grid>
+            <Grid item xs={12} md={4}><TextField fullWidth size="small" placeholder="Last Name" value={lastName} onChange={(e) => setLastName(e.target.value)} /></Grid>
 
             <Grid item xs={12} md={2}><Typography component="label" fontWeight="bold">Company</Typography></Grid>
-            <Grid item xs={12} md={4}><TextField fullWidth placeholder="Company" value={company} onChange={(e) => setCompany(e.target.value)} /></Grid>
+            <Grid item xs={12} md={4}><TextField fullWidth size="small" placeholder="Company" value={company} onChange={(e) => setCompany(e.target.value)} /></Grid>
             
             <Grid item xs={12} md={2}><Typography component="label" fontWeight="bold">Stage</Typography></Grid>
             <Grid item xs={12} md={4}>
               <Autocomplete
+              
                 options={stageOptions}
                 loading={enumsLoading}
                 value={stage}
                 onChange={(event, newValue) => setStage(newValue)}
-                renderInput={(params) => <TextField {...params} placeholder="Select Stage" />}
+                renderInput={(params) => <TextField {...params} size="small" placeholder="Select Stage" />}
               />
             </Grid>
 
           
             <Grid item xs={12} md={2}><Typography component="label" fontWeight="bold">Email</Typography></Grid>
-            <Grid item xs={12} md={4}><TextField fullWidth placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Grid>
+            <Grid item xs={12} md={4}><TextField fullWidth  size="small" placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Grid>
 
             <Grid item xs={12} md={2}><Typography component="label" fontWeight="bold">Phone</Typography></Grid>
-            <Grid item xs={12} md={4}><TextField fullWidth placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} /></Grid>
+            <Grid item xs={12} md={4}><TextField fullWidth size="small"  placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} /></Grid>
             
           
             <Grid item xs={12} md={2}><Typography component="label" fontWeight="bold">Source</Typography></Grid>
-            <Grid item xs={12} md={4}><TextField fullWidth placeholder="Source" value={source} onChange={(e) => setSource(e.target.value)} /></Grid>
+            <Grid item xs={12} md={4}><TextField fullWidth size="small" placeholder="Source" value={source} onChange={(e) => setSource(e.target.value)} /></Grid>
             
             <Grid item xs={12} md={2}><Typography component="label" fontWeight="bold">Lead Score</Typography></Grid>
-            <Grid item xs={12} md={4}><TextField fullWidth placeholder="0" type="number" value={leadScore} onChange={(e) => setLeadScore(e.target.value)}/></Grid>
+            <Grid item xs={12} md={4}><TextField fullWidth size="small" placeholder="0" type="number" value={leadScore} onChange={(e) => setLeadScore(e.target.value)}/></Grid>
             
             <Grid item xs={12} md={2}><Typography component="label" fontWeight="bold">Tags</Typography></Grid>
             <Grid item xs={12} md={10}>
               <Autocomplete
                 multiple
+                
                 options={tagOptions}
                 loading={enumsLoading}
                 value={tags}
                 onChange={(event, newValues) => setTags(newValues)}
-                renderInput={(params) => <TextField {...params} placeholder="Select tags" />}
+                renderInput={(params) => <TextField {...params} size="small" placeholder="Select tags" />}
               />
             </Grid>
 
         
             <Grid item xs={12}>
-              <LoadingButton loading={isSubmitting} handleSubmit={handleSubmit} text="Create Lead"/>
+              <LoadingButton loading={isSubmitting} size="small" handleSubmit={handleSubmit} text="Create Lead"/>
             </Grid>
           </Grid>
         </Grid>
