@@ -12,21 +12,22 @@ import {
   TablePagination,
   Chip,
   Box,
-  IconButton, // Import IconButton
-  Tooltip, // Import Tooltip for better UX
+  IconButton,
+  Tooltip,
+  Typography,
 } from "@mui/material";
-import EditIcon from "@mui/icons-material/Edit"; // Import Edit Icon
-import DeleteIcon from "@mui/icons-material/Delete"; // Import Delete Icon
+import DeleteIcon from "@mui/icons-material/Delete";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useRouter } from "next/router";
-import useApi from "@/components/utils/useApi";
 import { Search, StyledInputBase } from "@/styles/main/search-styles";
 import IsPermissionEnabled from "@/components/utils/IsPermissionEnabled";
-import BASE_URL from "Base/api";
 import AccessDenied from "@/components/UIElements/Permission/AccessDenied";
+import EditLead from "./edit";
+import usePaginatedFetch from "@/components/hooks/usePaginatedFetch";
+import useApi from "@/components/utils/useApi";
+import BASE_URL from "Base/api";
 
-// This object acts as a dictionary to translate stage numbers to names
 const LEAD_STAGE_MAP = {
   1: "New",
   2: "Contacted",
@@ -37,81 +38,85 @@ const LEAD_STAGE_MAP = {
 const Leads = () => {
   const cId = sessionStorage.getItem("category");
   const { navigate, create, update, remove } = IsPermissionEnabled(cId);
-
-  const [leads, setLeads] = useState([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [searchTerm, setSearchTerm] = useState("");
   const router = useRouter();
 
-  const apiUrl = `/Leads/GetAllLeads?Filter=${searchTerm}&SkipCount=${
-    page * rowsPerPage
-  }&MaxResultCount=${rowsPerPage}`;
-  const {
-    data: apiResponse,
-    loading: leadsLoading,
-    error,
-    refetch,
-  } = useApi(apiUrl);
+  const [tagMap, setTagMap] = useState({});
 
+  const { data: enumsData } = useApi("/Enums/crm");
   useEffect(() => {
-    if (apiResponse && apiResponse.items) {
-      setLeads(apiResponse.items || []);
-      setTotalCount(apiResponse.totalCount || 0);
-    } else if (error) {
-      toast.error("Failed to fetch leads.");
-      console.error("Error fetching leads:", error);
+    if (enumsData && enumsData.leadTags) {
+      setTagMap(enumsData.leadTags);
     }
-  }, [apiResponse, error]);
+  }, [enumsData]);
+
+  const {
+    data: leads,
+    totalCount,
+    page,
+    pageSize,
+    search,
+    setPage,
+    setPageSize,
+    setSearch,
+    fetchData: fetchLeads,
+  } = usePaginatedFetch("Leads/GetAllLeads");
 
   const navigateToCreate = () => router.push("/crm/lead/create-lead");
 
+  // --- THIS IS THE UPDATED FUNCTION ---
+  // Removed the window.confirm() wrapper
   const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this lead?")) {
-      try {
-        const response = await fetch(
-          `${BASE_URL}/api/Leads/DeleteLead?id=${id}`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
-          }
-        );
-        const result = await response.json();
-        if (response.ok) {
-          toast.success("Lead deleted successfully!");
-          refetch(); // Reload the data
-        } else {
-          toast.error(result.message || "Failed to delete lead.");
+    try {
+      const response = await fetch(
+        `${BASE_URL}/Leads/DeleteLead?id=${id}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
         }
-      } catch (err) {
-        toast.error("An error occurred.");
+      );
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast.success(result.message || "Lead deleted successfully!");
+        fetchLeads(); // This reloads the table
+      } else {
+        toast.error(result.message || "Failed to delete lead.");
       }
+    } catch (err) {
+      toast.error("An error occurred while connecting to the server.");
     }
   };
+  // --- END OF UPDATE ---
 
-  const handleSearchChange = (event) => setSearchTerm(event.target.value);
-  const handleChangePage = (event, newPage) => setPage(newPage);
+  const handleSearchChange = (event) => {
+    setSearch(event.target.value);
+    fetchLeads(1, event.target.value, pageSize);
+    setPage(1);
+  };
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage + 1);
+    fetchLeads(newPage + 1, search, pageSize);
+  };
+
   const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0); // Reset to the first page when changing page size
+    const size = parseInt(event.target.value, 10);
+    setPageSize(size);
+    setPage(1);
+    fetchLeads(1, search, size);
   };
 
   const getStageChipColor = (stageId) => {
     const stageName = LEAD_STAGE_MAP[stageId] || "";
     switch (stageName.toLowerCase()) {
-      case "qualified":
-        return "success";
-      case "contacted":
-        return "warning";
-      case "new":
-        return "primary";
-      case "unqualified":
-        return "error";
-      default:
-        return "default";
+      case "qualified": return "success";
+      case "contacted": return "warning";
+      case "new": return "primary";
+      case "unqualified": return "error";
+      default: return "default";
     }
   };
 
@@ -130,7 +135,7 @@ const Leads = () => {
           <Search className="search-form">
             <StyledInputBase
               placeholder="Search..."
-              value={searchTerm}
+              value={search}
               onChange={handleSearchChange}
             />
           </Search>
@@ -152,70 +157,79 @@ const Leads = () => {
                   <TableCell>Email</TableCell>
                   <TableCell>Phone</TableCell>
                   <TableCell>Stage</TableCell>
+                  <TableCell>Tags</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {leadsLoading ? (
+                {leads.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} align="center">
-                      Loading...
-                    </TableCell>
-                  </TableRow>
-                ) : leads.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} align="center">
-                      No Leads Available
+                    <TableCell colSpan={7} align="center">
+                      <Typography color="error">No Leads Available</Typography>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  leads.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        {item.firstName} {item.lastName}
-                      </TableCell>
-                      <TableCell>{item.company}</TableCell>
-                      <TableCell>{item.email}</TableCell>
-                      <TableCell>{item.phone}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={LEAD_STAGE_MAP[item.stage] || "Unknown"}
-                          color={getStageChipColor(item.stage)}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <Box
-                          sx={{ display: "flex", justifyContent: "flex-end" }}
-                        >
-                          {update && (
-                            <Tooltip title="Edit Lead">
-                              <IconButton
-                                size="small"
-                                color="primary"
-                                onClick={() =>
-                                  router.push(`/crm/leads/edit/${item.id}`)
-                                }
-                              >
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                          {remove && (
-                            <Tooltip title="Delete Lead">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => handleDelete(item.id)}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  leads.map((item) => {
+                    const tagNames = Array.isArray(item.tags)
+                      ? item.tags
+                          .map(tagId => tagMap[tagId])
+                          .filter(Boolean)
+                      : [];
+
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          {item.firstName} {item.lastName}
+                        </TableCell>
+                        <TableCell>{item.company}</TableCell>
+                        <TableCell>{item.email}</TableCell>
+                        <TableCell>{item.phone}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={LEAD_STAGE_MAP[item.stage] || "Unknown"}
+                            color={getStageChipColor(item.stage)}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {tagNames.length > 0 ? (
+                              tagNames.map((name, index) => (
+                                <Chip
+                                  key={index}
+                                  label={name}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              ))
+                            ) : (
+                              '--'
+                            )}
+                          </Box>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Box
+                            sx={{ display: "flex", justifyContent: "flex-end" }}
+                          >
+                            {update && (
+                              <EditLead item={item} fetchItems={fetchLeads} />
+                            )}
+                            {remove && (
+                              <Tooltip title="Delete Lead">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => handleDelete(item.id)}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
@@ -223,8 +237,8 @@ const Leads = () => {
               rowsPerPageOptions={[5, 10, 25]}
               component="div"
               count={totalCount}
-              rowsPerPage={rowsPerPage}
-              page={page}
+              rowsPerPage={pageSize}
+              page={page - 1}
               onPageChange={handleChangePage}
               onRowsPerPageChange={handleChangeRowsPerPage}
             />
