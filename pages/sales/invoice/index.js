@@ -27,7 +27,6 @@ import IsPermissionEnabled from "@/components/utils/IsPermissionEnabled";
 import CancelConfirmationById from "./CancelConfirmationById";
 import { Catelogue } from "Base/catelogue";
 import IsAppSettingEnabled from "@/components/utils/IsAppSettingEnabled";
-import { getPaymentMethods } from "@/components/types/types";
 
 export default function Invoice() {
   const cId = sessionStorage.getItem("category")
@@ -40,9 +39,7 @@ export default function Invoice() {
   const { data: isBookingSystem } = IsAppSettingEnabled(
     "IsBookingSystem"
   );
-  const { data: isPaymentTypeEnableToInvoice } = IsAppSettingEnabled(
-    "IsPaymentTypeEnableToInvoice"
-  );
+
   const { data: isDoctorInvolved } = IsAppSettingEnabled(
     "IsDoctorInvolved"
   );
@@ -146,7 +143,6 @@ export default function Invoice() {
                   {!isBookingSystem && (<TableCell>Warehouse</TableCell>)}
                   <TableCell>Net Total (Rs)</TableCell>
                   <TableCell>Customer</TableCell>
-                  {isPaymentTypeEnableToInvoice && (<TableCell>Payment Type</TableCell>)}
                   {isDoctorInvolved && (
                     <>
                       <TableCell>Doctor</TableCell>
@@ -180,7 +176,6 @@ export default function Invoice() {
                         {!isBookingSystem && (<TableCell>{item.warehouseName}</TableCell>)}
                         <TableCell>{formatCurrency(item.netTotal)}</TableCell>
                         <TableCell>{item.customerName}</TableCell>
-                        {isPaymentTypeEnableToInvoice && (<TableCell>{getPaymentMethods(item.paymentType)}</TableCell>)}
                         {isDoctorInvolved && (
                           <>
                             <TableCell>{item.doctorName}</TableCell>
