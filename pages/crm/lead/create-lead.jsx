@@ -95,6 +95,12 @@ const CreateLead = () => {
       <ToastContainer />
       <div className={styles.pageTitle}>
         <h1>New Lead</h1>
+         <ul>
+            <li>
+              <Link href="/crm/lead">Lead</Link>
+            </li>
+           <li>Create</li>
+        </ul>
       </div>
       
       <Grid container justifyContent="center">

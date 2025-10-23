@@ -291,7 +291,8 @@ export const getSidebarData = (IsGarmentSystem) => {
         ModuleId: 18,
         IsAvailable: true,
         subNav: [
-            { title: "Leads", path: "/crm/lead/", categoryId: 99, isAvailable: true },
+            { title: "Leads", path: "/crm/lead/", categoryId: 101, isAvailable: true },
+            { title: "Contact", path: "/crm/contact/", categoryId: 102, isAvailable: true },
             
         ],
     });

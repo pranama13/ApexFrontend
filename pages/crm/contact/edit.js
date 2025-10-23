@@ -1,15 +1,11 @@
+// FileName: edit.js (for ContactCRM)
 import React, { useEffect, useRef, useState } from "react";
 import {
   Grid,
   IconButton,
   Tooltip,
   Typography,
-  Select,
-  MenuItem,
-  InputLabel,
-  FormControl,
   Autocomplete,
-  Chip,
 } from "@mui/material";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -34,52 +30,74 @@ const style = {
   p: 2,
 };
 
+// --- FIX 1: Updated Validation Schema ---
 const validationSchema = Yup.object().shape({
-  firstName: Yup.string().trim().required("First Name is required"),
-  lastName: Yup.string().trim().required("Last Name is required"),
-  email: Yup.string().email("Invalid email address").required("Email is required"),
-  phone: Yup.string().trim(),
-  company: Yup.string().trim(),
-  stage: Yup.string().nullable().required("Stage is required"),
-  source: Yup.string().trim().required("Source is required"),
-  leadScore: Yup.number(), // <-- 1. Added validation
-  tags: Yup.array().of(Yup.string()),
+  firstname: Yup.string().trim().required("First Name is required"),
+  lastname: Yup.string().trim().required("Last Name is required"),
+  email: Yup.string()
+    .email("Invalid email address")
+    .required("Email is required"),
+  phone: Yup.string().trim().required("Phone is required"),
+  title: Yup.string().trim(),
+  lifeCycleStage: Yup.object().nullable().required("Lifecycle Stage is required"),
+  // Changed from 'tag' to 'tags' and validated as an array
+  tags: Yup.array().min(1, "At least one tag is required").required("Tags are required"),
 });
+// ----------------------------------------
 
-const LEAD_STAGE_MAP = {
-  1: "New",
-  2: "Contacted",
-  3: "Qualified",
-  4: "Unqualified",
+// Helper to convert enum object to array for Autocomplete
+const getOptionsFromEnum = (enumObj) => {
+  if (!enumObj) return [];
+  return Object.entries(enumObj).map(([key, value]) => ({
+    key: parseInt(key, 10),
+    value,
+  }));
 };
 
-const parseTags = (tags, map) => {
-  if (!Array.isArray(tags)) {
-    return [];
+// Helper to find the {key, value} object from the enum key
+const findOptionByKey = (options, key) => {
+  return options.find((opt) => opt.key === key) || null;
+};
+
+// --- FIX 2: Added Helper to find multiple options from an array of keys ---
+// This handles parsing the string "[2]" or array [2] from item.tags
+const findOptionsByKeys = (options, itemTags) => {
+  let tagIds = [];
+  try {
+    if (typeof itemTags === 'string') {
+      tagIds = JSON.parse(itemTags); // Converts "[2]" to [2]
+    } else if (Array.isArray(itemTags)) {
+      tagIds = itemTags; // Already [2]
+    }
+  } catch (e) {
+    console.error("Failed to parse tags for edit modal:", itemTags, e);
   }
-  return tags
-    .map(tagId => map[tagId])
-    .filter(Boolean);
+  
+  if (!Array.isArray(tagIds)) return [];
+  
+  return tagIds
+    .map(id => options.find(opt => opt.key === id))
+    .filter(Boolean); // filter(Boolean) removes any nulls
 };
+// -------------------------------------------------------------------
 
-export default function EditLead({ fetchItems, item }) {
+export default function EditContactCRM({ fetchItems, item }) {
   const [open, setOpen] = React.useState(false);
   const handleClose = () => setOpen(false);
   const inputRef = useRef(null);
 
   const [tagOptions, setTagOptions] = useState([]);
-  const [stageOptions, setStageOptions] = useState([]);
-  const [tagMap, setTagMap] = useState({});
+  const [lifeCycleStageOptions, setLifeCycleStageOptions] = useState([]);
+
   const { data: apiResponse, loading: enumsLoading } = useApi("/Enums/crm");
 
   useEffect(() => {
-    if (apiResponse && apiResponse.leadStages) {
-      const stages = Object.values(apiResponse.leadStages || {});
-      const tags = Object.values(apiResponse.leadTags || {});
+    if (apiResponse) {
+      const tags = getOptionsFromEnum(apiResponse.leadTags);
+      const stages = getOptionsFromEnum(apiResponse.lifeCycleStages);
       
-      setStageOptions(stages);
       setTagOptions(tags);
-      setTagMap(apiResponse.leadTags || {});
+      setLifeCycleStageOptions(stages);
     }
   }, [apiResponse]);
 
@@ -97,16 +115,19 @@ export default function EditLead({ fetchItems, item }) {
     setOpen(true);
   };
 
+  // --- FIX 3: Updated handleSubmit ---
   const handleSubmit = (values) => {
-    // 3. Ensure leadScore is a number, just like in CreateLead.js
+    // Flatten the object for the payload
     const payload = {
       ...values,
-      leadScore: Number(values.leadScore) || 0,
+      lifeCycleStage: values.lifeCycleStage?.key || 0,
+      // Convert array of objects back to array of keys
+      tags: values.tags.map(t => t.key), 
     };
 
-    fetch(`${BASE_URL}/Leads/UpdateLead`, {
+    fetch(`${BASE_URL}/ContactCRM/UpdateContactCRM`, {
       method: "POST",
-      body: JSON.stringify(payload), // Send the modified payload
+      body: JSON.stringify(payload),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -115,7 +136,7 @@ export default function EditLead({ fetchItems, item }) {
       .then(async (response) => {
         const data = await response.json();
         if (response.ok) {
-          toast.success(data.message || "Lead updated successfully!");
+          toast.success(data.message || "Contact updated successfully!");
           handleClose();
           
           if (typeof fetchItems === 'function') {
@@ -124,8 +145,8 @@ export default function EditLead({ fetchItems, item }) {
             console.error("fetchItems prop is not a function!");
           }
         } else {
-          if (data.errors) {
-            const errorMessages = Object.values(data.errors).flat().join(" ");
+          if (response.status === 400 || response.status === 409 || data.errors) {
+            const errorMessages = data.errors ? Object.values(data.errors).flat().join(" ") : data.message;
             toast.error(errorMessages || "An error occurred.");
           } else {
             toast.error(data.message || "An error occurred.");
@@ -136,10 +157,11 @@ export default function EditLead({ fetchItems, item }) {
         toast.error(error.message || "An error occurred.");
       });
   };
+  // ------------------------------------
 
   return (
     <>
-      <Tooltip title="Edit" placement="top">
+      <Tooltip title="Edit Contact" placement="top">
         <IconButton onClick={handleOpen} aria-label="edit" size="small">
           <BorderColorIcon color="primary" fontSize="inherit" />
         </IconButton>
@@ -152,21 +174,22 @@ export default function EditLead({ fetchItems, item }) {
       >
         <Box sx={style} className="bg-black">
           <Formik
+            // --- FIX 4: Updated initialValues ---
             initialValues={{
               id: item.id,
-              firstName: item.firstName || "",
-              lastName: item.lastName || "",
-              company: item.company || "",
+              firstname: item.firstname || "",
+              lastname: item.lastname || "",
               email: item.email || "",
               phone: item.phone || "",
-              stage: LEAD_STAGE_MAP[item.stage] || "New",
-              source: item.source || "",
-              leadScore: item.leadScore || 0, // <-- 2. Added initial value
-              tags: parseTags(item.tags, tagMap),
+              title: item.title || "",
+              lifeCycleStage: findOptionByKey(lifeCycleStageOptions, item.lifeCycleStage),
+              // Use the new helper function and 'item.tags' (plural)
+              tags: findOptionsByKeys(tagOptions, item.tags), 
             }}
+            // -------------------------------------
             validationSchema={validationSchema}
             onSubmit={handleSubmit}
-            enableReinitialize
+            enableReinitialize // Important to update form when enums load
           >
             {({ errors, touched, values, setFieldValue }) => (
               <Form>
@@ -179,39 +202,40 @@ export default function EditLead({ fetchItems, item }) {
                         mb: "15px",
                       }}
                     >
-                      Edit Lead
+                      Edit Contact
                     </Typography>
                   </Grid>
                   <Box sx={{ maxHeight: "60vh", overflowY: "auto", width: "100%", paddingRight: "10px" }}>
                     <Grid container spacing={2}>
+                      {/* ... Other fields (firstname, lastname, email, etc.) ... */}
                       <Grid item xs={12} sm={6}>
                         <Typography sx={{ fontWeight: "500", mb: "5px" }}>
-                          First Name
+                          First Name*
                         </Typography>
                         <Field
                           as={TextField}
                           fullWidth
-                          name="firstName"
+                          name="firstname"
                           inputRef={inputRef}
-                          error={touched.firstName && Boolean(errors.firstName)}
-                          helperText={touched.firstName && errors.firstName}
+                          error={touched.firstname && Boolean(errors.firstname)}
+                          helperText={touched.firstname && errors.firstname}
                         />
                       </Grid>
                       <Grid item xs={12} sm={6}>
                         <Typography sx={{ fontWeight: "500", mb: "5px" }}>
-                          Last Name
+                          Last Name*
                         </Typography>
                         <Field
                           as={TextField}
                           fullWidth
-                          name="lastName"
-                          error={touched.lastName && Boolean(errors.lastName)}
-                          helperText={touched.lastName && errors.lastName}
+                          name="lastname"
+                          error={touched.lastname && Boolean(errors.lastname)}
+                          helperText={touched.lastname && errors.lastname}
                         />
                       </Grid>
                       <Grid item xs={12}>
                         <Typography sx={{ fontWeight: "500", mb: "5px" }}>
-                          Email
+                          Email*
                         </Typography>
                         <Field
                           as={TextField}
@@ -224,7 +248,7 @@ export default function EditLead({ fetchItems, item }) {
                       </Grid>
                       <Grid item xs={12} sm={6}>
                         <Typography sx={{ fontWeight: "500", mb: "5px" }}>
-                          Phone
+                          Phone*
                         </Typography>
                         <Field
                           as={TextField}
@@ -236,98 +260,69 @@ export default function EditLead({ fetchItems, item }) {
                       </Grid>
                       <Grid item xs={12} sm={6}>
                         <Typography sx={{ fontWeight: "500", mb: "5px" }}>
-                          Company
+                          Title
                         </Typography>
                         <Field
                           as={TextField}
                           fullWidth
-                          name="company"
-                          error={touched.company && Boolean(errors.company)}
-                          helperText={touched.company && errors.company}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <Typography sx={{ fontWeight: "500", mb: "5px" }}>
-                          Source
-                        </Typography>
-                        <Field
-                          as={TextField}
-                          fullWidth
-                          name="source"
-                          error={touched.source && Boolean(errors.source)}
-                          helperText={touched.source && errors.source}
+                          name="title"
+                          error={touched.title && Boolean(errors.title)}
+                          helperText={touched.title && errors.title}
                         />
                       </Grid>
 
-                      {/* --- ADDED LEAD SCORE --- */}
-                      <Grid item xs={12} sm={6}>
-                        <Typography sx={{ fontWeight: "500", mb: "5px" }}>
-                          Lead Score
-                        </Typography>
-                        <Field
-                          as={TextField}
-                          fullWidth
-                          name="leadScore"
-                          type="number"
-                          error={touched.leadScore && Boolean(errors.leadScore)}
-                          helperText={touched.leadScore && errors.leadScore}
-                        />
-                      </Grid>
-
-                      {/* --- MODIFIED STAGE FIELD --- */}
                       <Grid item xs={12}>
                         <Typography sx={{ fontWeight: "500", mb: "5px" }}>
-                          Stage
+                          Lifecycle Stage*
                         </Typography>
                         <Autocomplete
-                          options={stageOptions}
+                          options={lifeCycleStageOptions}
                           loading={enumsLoading}
-                          value={values.stage}
+                          value={values.lifeCycleStage}
+                          getOptionLabel={(option) => option.value || ""}
+                          isOptionEqualToValue={(option, value) => option.key === value.key}
                           onChange={(event, newValue) => {
-                            setFieldValue("stage", newValue);
+                            setFieldValue("lifeCycleStage", newValue);
                           }}
                           renderInput={(params) => (
                             <TextField 
                               {...params} 
-                              placeholder="Select Stage" // Removed label
-                              error={touched.stage && Boolean(errors.stage)}
-                              helperText={touched.stage && errors.stage}
+                              placeholder="Select Lifecycle Stage"
+                              error={touched.lifeCycleStage && Boolean(errors.lifeCycleStage)}
+                              helperText={touched.lifeCycleStage && errors.lifeCycleStage}
                             />
                           )}
                         />
                       </Grid>
 
+                      {/* --- FIX 5: Updated Tags Field --- */}
                       <Grid item xs={12}>
+                        <Typography sx={{ fontWeight: "500", mb: "5px" }}>
+                          Tags*
+                        </Typography>
                         <Autocomplete
-                          multiple
-                          freeSolo 
+                          multiple // Added this
                           options={tagOptions} 
                           loading={enumsLoading}
-                          value={values.tags}
+                          value={values.tags} // Changed to 'tags'
+                          getOptionLabel={(option) => option.value || ""}
+                          isOptionEqualToValue={(option, value) => option.key === value.key}
                           onChange={(event, newValue) => {
-                            setFieldValue("tags", newValue);
+                            setFieldValue("tags", newValue); // Changed to 'tags'
                           }}
-                          renderTags={(value, getTagProps) =>
-                            value.map((option, index) => (
-                              <Chip
-                                variant="outlined"
-                                label={option}
-                                {...getTagProps({ index })}
-                              />
-                            ))
-                          }
                           renderInput={(params) => (
                             <TextField
                               {...params}
                               variant="outlined"
-                              label="Tags"
-                              placeholder="Add or select tags"
-                              error={touched.tags && Boolean(errors.tags)}
-                              helperText={touched.tags && errors.tags}
+                              placeholder="Select Tags" // Updated placeholder
+                              error={touched.tags && Boolean(errors.tags)} // Changed to 'tags'
+                              helperText={touched.tags && errors.tags} // Changed to 'tags'
                             />
                           )}
                         />
                       </Grid>
+                      {/* ---------------------------------- */}
+
                     </Grid>
                   </Box>
                   <Grid container>

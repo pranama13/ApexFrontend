@@ -1,3 +1,5 @@
+// FileName: index.jsx (for ContactCRM)
+
 import React, { useEffect, useState } from "react";
 import Grid from "@mui/material/Grid";
 import {
@@ -16,43 +18,43 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import DeleteIcon from "@mui/icons-material/Delete";
 import Link from "next/link";
 import styles from "@/styles/PageTitle.module.css";
+import DeleteIcon from "@mui/icons-material/Delete";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useRouter } from "next/router";
 import { Search, StyledInputBase } from "@/styles/main/search-styles";
 import IsPermissionEnabled from "@/components/utils/IsPermissionEnabled";
 import AccessDenied from "@/components/UIElements/Permission/AccessDenied";
-import EditLead from "./edit";
+import EditContactCRM from "./edit";
 import usePaginatedFetch from "@/components/hooks/usePaginatedFetch";
 import useApi from "@/components/utils/useApi";
 import BASE_URL from "Base/api";
 
-const LEAD_STAGE_MAP = {
-  1: "New",
-  2: "Contacted",
-  3: "Qualified",
-  4: "Unqualified",
-};
-
-const Leads = () => {
+const ContactCRM = () => {
   const cId = sessionStorage.getItem("category");
   const { navigate, create, update, remove } = IsPermissionEnabled(cId);
   const router = useRouter();
 
   const [tagMap, setTagMap] = useState({});
+  const [lifeCycleMap, setLifeCycleMap] = useState({});
 
-  const { data: enumsData } = useApi("/Enums/crm");
+  const { data: enumsData, loading: enumsLoading } = useApi("/Enums/crm");
+  
   useEffect(() => {
-    if (enumsData && enumsData.leadTags) {
-      setTagMap(enumsData.leadTags);
+    if (enumsData) {
+      if (enumsData.leadTags) {
+        setTagMap(enumsData.leadTags);
+      }
+      if (enumsData.lifeCycleStages) {
+        setLifeCycleMap(enumsData.lifeCycleStages);
+      }
     }
   }, [enumsData]);
 
   const {
-    data: leads,
+    data: contacts,
     totalCount,
     page,
     pageSize,
@@ -60,17 +62,21 @@ const Leads = () => {
     setPage,
     setPageSize,
     setSearch,
-    fetchData: fetchLeads,
-  } = usePaginatedFetch("Leads/GetAllLeads");
+    fetchData: fetchContacts,
+    loading: contactsLoading, 
+  } = usePaginatedFetch("ContactCRM/GetAllContactCRMs");
 
-  const navigateToCreate = () => router.push("/crm/lead/create-lead");
+  // Fetch data on component mount
+  useEffect(() => {
+    fetchContacts();
+  }, [fetchContacts]);
 
-  // --- THIS IS THE UPDATED FUNCTION ---
-  // Removed the window.confirm() wrapper
+  const navigateToCreate = () => router.push("/crm/contact/create-contact");
+
   const handleDelete = async (id) => {
     try {
       const response = await fetch(
-        `${BASE_URL}/Leads/DeleteLead?id=${id}`,
+        `${BASE_URL}/ContactCRM/DeleteContactCRM?id=${id}`,
         {
           method: "POST",
           headers: {
@@ -82,43 +88,49 @@ const Leads = () => {
       const result = await response.json();
 
       if (response.ok) {
-        toast.success(result.message || "Lead deleted successfully!");
-        fetchLeads(); // This reloads the table
+        toast.success(result.message || "Contact deleted successfully!");
+        fetchContacts();
       } else {
-        toast.error(result.message || "Failed to delete lead.");
+        toast.error(result.message || "Failed to delete contact.");
       }
     } catch (err) {
       toast.error("An error occurred while connecting to the server.");
     }
   };
-  // --- END OF UPDATE ---
 
   const handleSearchChange = (event) => {
     setSearch(event.target.value);
-    fetchLeads(1, event.target.value, pageSize);
+    fetchContacts(1, event.target.value, pageSize);
     setPage(1);
   };
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage + 1);
-    fetchLeads(newPage + 1, search, pageSize);
+    fetchContacts(newPage + 1, search, pageSize);
   };
 
   const handleChangeRowsPerPage = (event) => {
     const size = parseInt(event.target.value, 10);
     setPageSize(size);
     setPage(1);
-    fetchLeads(1, search, size);
+    fetchContacts(1, search, size);
   };
 
-  const getStageChipColor = (stageId) => {
-    const stageName = LEAD_STAGE_MAP[stageId] || "";
+  const getLifeCycleChipColor = (stageId) => {
+    const stageName = lifeCycleMap[stageId] || "";
     switch (stageName.toLowerCase()) {
-      case "qualified": return "success";
-      case "contacted": return "warning";
-      case "new": return "primary";
-      case "unqualified": return "error";
-      default: return "default";
+      case "customer":
+        return "success";
+      case "sql":
+        return "warning";
+      case "mql":
+        return "secondary";
+      case "lead":
+        return "primary";
+      case "subscriber":
+        return "default";
+      default:
+        return "default";
     }
   };
 
@@ -130,13 +142,12 @@ const Leads = () => {
     <>
       <ToastContainer />
       <div className={styles.pageTitle}>
-        <h1>Leads</h1>
         <h1>Contact</h1>
-          <ul>
-            <li>
-               <Link href="/crm/lead">Lead</Link>
-            </li>
-          </ul>
+         <ul>
+                  <li>
+                    <Link href="/crm/contact">Contact</Link>
+                  </li>
+                </ul>
       </div>
       <Grid container spacing={2}>
         <Grid item xs={12} md={4}>
@@ -151,7 +162,7 @@ const Leads = () => {
         <Grid item xs={12} md={8} display="flex" justifyContent="end" gap={1}>
           {create && (
             <Button variant="outlined" size="small" onClick={navigateToCreate}>
-              + New Lead
+              + New Contact
             </Button>
           )}
         </Grid>
@@ -161,46 +172,78 @@ const Leads = () => {
               <TableHead>
                 <TableRow>
                   <TableCell>Name</TableCell>
-                  <TableCell>Company</TableCell>
                   <TableCell>Email</TableCell>
                   <TableCell>Phone</TableCell>
-                  <TableCell>Stage</TableCell>
-                  <TableCell>Tags</TableCell>
+                  <TableCell>Title</TableCell>
+                  <TableCell>Lifecycle Stage</TableCell>
+                  <TableCell>Tag</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {leads.length === 0 ? (
+                {contactsLoading || enumsLoading ? (
                   <TableRow>
                     <TableCell colSpan={7} align="center">
-                      <Typography color="error">No Leads Available</Typography>
+                      <Typography>Loading...</Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : contacts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center">
+                      <Typography color="error">
+                        No Contacts Available
+                      </Typography>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  leads.map((item) => {
-                    const tagNames = Array.isArray(item.tags)
-                      ? item.tags
-                          .map(tagId => tagMap[tagId])
+                  contacts.map((item) => {
+                    // --- FIX: PARSE THE TAGS STRING FROM THE API ---
+                    let tagIds = [];
+                    try {
+                      // Check if item.tags is a string like "[2]"
+                      if (typeof item.tags === 'string') {
+                        tagIds = JSON.parse(item.tags); // Converts "[2]" to [2]
+                      } else if (Array.isArray(item.tags)) {
+                        // Also support if API sends a proper array
+                        tagIds = item.tags;
+                      }
+                    } catch (e) {
+                      console.error("Failed to parse tags:", item.tags, e);
+                      // tagIds will be [] if parsing fails
+                    }
+                    
+                    const tagNames = Array.isArray(tagIds)
+                      ? tagIds
+                          .map((tagId) => tagMap[tagId]) // Now maps over [2]
                           .filter(Boolean)
                       : [];
+                    // -----------------------------------------------
 
                     return (
                       <TableRow key={item.id}>
                         <TableCell>
-                          {item.firstName} {item.lastName}
+                          {item.firstname} {item.lastname}
                         </TableCell>
-                        <TableCell>{item.company}</TableCell>
                         <TableCell>{item.email}</TableCell>
                         <TableCell>{item.phone}</TableCell>
+                        <TableCell>{item.title || "--"}</TableCell>
                         <TableCell>
                           <Chip
-                            label={LEAD_STAGE_MAP[item.stage] || "Unknown"}
-                            color={getStageChipColor(item.stage)}
+                            label={
+                              lifeCycleMap[item.lifeCycleStage] || "Unknown"
+                            }
+                            color={getLifeCycleChipColor(item.lifeCycleStage)}
                             size="small"
                           />
                         </TableCell>
                         <TableCell>
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 0.5,
+                            }}
+                          >
                             {tagNames.length > 0 ? (
                               tagNames.map((name, index) => (
                                 <Chip
@@ -211,7 +254,7 @@ const Leads = () => {
                                 />
                               ))
                             ) : (
-                              '--'
+                              "--"
                             )}
                           </Box>
                         </TableCell>
@@ -220,10 +263,13 @@ const Leads = () => {
                             sx={{ display: "flex", justifyContent: "flex-end" }}
                           >
                             {update && (
-                              <EditLead item={item} fetchItems={fetchLeads} />
+                              <EditContactCRM
+                                item={item}
+                                fetchItems={fetchContacts}
+                              />
                             )}
                             {remove && (
-                              <Tooltip title="Delete Lead">
+                              <Tooltip title="Delete Contact">
                                 <IconButton
                                   size="small"
                                   color="error"
@@ -257,4 +303,4 @@ const Leads = () => {
   );
 };
 
-export default Leads;
+export default ContactCRM;
